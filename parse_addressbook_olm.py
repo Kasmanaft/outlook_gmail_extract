@@ -1,60 +1,52 @@
 import sys
 import zipfile
+import csv
 from lxml import etree
-from datetime import datetime
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 
-def get_addresses(email):
-    tag_from = email.find('.//OPFMessageCopyFromAddresses')
-    tag_sender = email.find('.//OPFMessageCopySenderAddress')
-    tag_to = email.find('.//OPFMessageCopyToAddresses')
-    tag_cc = email.find('.//OPFMessageCopyCCAddresses')
-    tag_bcc = email.find('.//OPFMessageCopyBCCAddresses')
+def get_emails(doc):
+    emails = []
+    for address in doc.findall('.//contactEmailAddress'):
+        emails.append(address.get('OPFContactEmailAddressAddress').lower())
 
-    emails = get_contacts(tag_from)
-    emails.update(get_contacts(tag_sender))
-    emails.update(get_contacts(tag_to))
-    emails.update(get_contacts(tag_cc))
-    emails.update(get_contacts(tag_bcc))
-
-    return emails
+    return list(set(emails))
 
 
-def get_contacts(addresses):
-    emails = {}
-    if addresses is not None:
-        for address in addresses.findall('.//emailAddress'):
-            email = address.get('OPFContactEmailAddressAddress')
-            name = address.get('OPFContactEmailAddressName')
-            if name is not None and name != email:
-                emails[email] = name
-
-    return emails
-
-
-def get_contact(contact):
-    doc = None
-    fh = zip.open(name)
-    try:
-        doc = etree.parse(fh)
-    except etree.XMLSyntaxError:
-        p = etree.XMLParser(huge_tree=True)
-        try:
-            doc = etree.parse(fh, p)
-        except etree.XMLSyntaxError:
-            # probably corrupt
-            pass
-
-    if doc is None:
+def get_contact(doc):
+    emails = get_emails(doc)
+    if len(emails) > 0:
+        contact = {
+            'email': emails.pop(),
+            'emails': ','.join(emails),
+            'firstname': doc.get('OPFContactCopyFirstName'),
+            'fullname': doc.get('OPFContactCopyDisplayName'),
+            'company': doc.get('OPFContactCopyBusinessCompany'),
+            'department': doc.get('OPFContactCopyBusinessDepartment'),
+            'company_phone': doc.get('OPFContactCopyBusinessPhone'),
+            'cell_phone': doc.get('OPFContactCopyCellPhone'),
+            'fax': doc.get('OPFContactCopyHomeFax'),
+            'city': doc.get('OPFContactCopyHomeCity'),
+            'country': doc.get('OPFContactCopyHomeCountry'),
+            'state': doc.get('OPFContactCopyHomeState'),
+            'street': doc.get('OPFContactCopyHomeStreetAddress'),
+            'zip': doc.get('OPFContactCopyHomeZip'),
+            'website': doc.get('OPFContactCopyHomeWebPage')
+        }
+        return contact
+    else:
         return
 
-    print(etree.tostring(doc, pretty_print=False))
+
+def array_of_dicts_to_csv(array, filename):
+    with open(filename, 'w+') as f:
+        w = csv.DictWriter(f, array[0].keys())
+        w.writeheader()
+        w.writerows(array)
 
 
 def parse_addressbook(zip, name):
     doc = None
+    contacts = []
     fh = zip.open(name)
     try:
         doc = etree.parse(fh)
@@ -69,12 +61,15 @@ def parse_addressbook(zip, name):
     if doc is None:
         return
 
-    for contact in doc.findall('//contact'):
-        return get_contact(contact)
+    for el in doc.findall('//contact'):
+        contact = get_contact(el)
+        if contact is not None:
+            contacts.append(contact)
+
+    return contacts
 
 
 def main():
-    emails = {}
     fn = sys.argv[1]
 
     zf = zipfile.ZipFile(fn, 'r')

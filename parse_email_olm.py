@@ -28,7 +28,7 @@ def get_contacts(addresses):
             email = address.get('OPFContactEmailAddressAddress')
             name = address.get('OPFContactEmailAddressName')
             if name is not None and name != email:
-                emails.append({'email': email, 'name': name})
+                emails.append({'email': email.lower(), 'fullname': name})
 
     return emails
 
