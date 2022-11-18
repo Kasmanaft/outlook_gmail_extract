@@ -1,68 +1,18 @@
+import os
 import sys
 import zipfile
-import csv
-import vobject
+import re
+import email
+from email import policy
+from email.parser import BytesParser
 import pandas as pd
-
-
-def get_phone_numbers(vCard):
-    cell = home = work = None
-    for tel in vCard.tel_list:
-        if vCard.version.value == '2.1':
-            if 'CELL' in tel.singletonparams:
-                cell = str(tel.value).strip()
-            elif 'WORK' in tel.singletonparams:
-                work = str(tel.value).strip()
-            elif 'HOME' in tel.singletonparams:
-                home = str(tel.value).strip()
-        elif vCard.version.value == '3.0':
-            if 'CELL' in tel.params['TYPE']:
-                cell = str(tel.value).strip()
-            elif 'WORK' in tel.params['TYPE']:
-                work = str(tel.value).strip()
-            elif 'HOME' in tel.params['TYPE']:
-                home = str(tel.value).strip()
-        else:
-            raise NotImplementedError("Version not implemented: {}".format(vCard.version.value))
-    return cell, home, work
-
-
-def get_info_list(vCard, vcard_filepath):
-    vcard = {}
-    name = cell = work = home = email = note = None
-    vCard.validate()
-    for key, val in list(vCard.contents.items()):
-        if key == 'fn':
-            vcard['fullname'] = vCard.fn.value
-        elif key == 'n':
-            name = str(vCard.n.valueRepr()).replace('  ', ' ').strip()
-            vcard['name'] = name
-        elif key == 'tel':
-            cell, home, work = get_phone_numbers(vCard)
-            vcard['cell_phone'] = cell | home
-            vcard['company_phone'] = work
-        elif key == 'email':
-            email = str(vCard.email.value).strip()
-            vcard['email'] = email
-        else:
-            # An unused key, like `adr`, `title`, `url`, etc.
-            pass
-
-    return vcard
-
-
-def array_of_dicts_to_csv(array, filename):
-    with open(filename, 'w+') as f:
-        w = csv.DictWriter(f, array[0].keys())
-        w.writeheader()
-        w.writerows(array)
 
 
 def save_attachments(attachments):
     for attachment in attachments:
-        if 'file_handle' in attachment:
+        if 'content' in attachment:
             with open(re.sub(r"[/\\?%*:|\"<>\x7F\x00-\x1F]", "-", attachment['file_name']), 'wb+') as f:
-                f.write(attachment['file_handle'].read())
+                f.write(attachment['content'])
 
 
 def create_and_open_folder(folder_name):
@@ -71,22 +21,41 @@ def create_and_open_folder(folder_name):
     os.chdir(folder_name)
 
 
+def extract_attachments_from_email(msg):
+    attachments = []
+    for part in msg.walk():
+        if part.get_content_maintype() == 'multipart':
+            continue
+        if part.get('Content-Disposition') is None:
+            continue
+
+        file_name = part.get_filename()
+        if bool(file_name):
+            file = {'file_name': file_name}
+            file['content'] = part.get_payload(decode=True)
+            attachments.append(file)
+    return attachments
+
+
 def main():
-    contacts = []
+    attachments = []
     fn = sys.argv[1]
-    output_name = sys.argv[2]
+    folder_name = sys.argv[2]
 
     zf = zipfile.ZipFile(fn, 'r')
     for info in zf.namelist():
-        if info.endswith('.vcf'):
-            for vcard in get_vcards(zf, info):
-                contacts.append(get_info_list(vcard, info))
+        if info.endswith('.eml'):
+            with zf.open(info) as fp:
+                msg = BytesParser(policy=policy.default).parse(fp)
+                attachments += extract_attachments_from_email(msg)
 
-    if len(contacts) == 0:
-        print("No contacts found.")
+    if len(attachments) == 0:
+        print("No attachments found.")
     else:
-        unique_contacts = pd.DataFrame(contacts).drop_duplicates(subset=['email']).to_dict('records')
-        array_of_dicts_to_csv(unique_contacts, output_name)
+        attachments_unique = pd.DataFrame(attachments).drop_duplicates(subset=['file_name']).to_dict('records')
+
+        create_and_open_folder(folder_name)
+        save_attachments(attachments_unique)
 
 
 if __name__ == '__main__':
