@@ -27,8 +27,13 @@ def get_phone_numbers(vCard):
     return cell, home, work
 
 
+def get_empty_record():
+    return dict.fromkeys(['email', 'emails', 'firstname', 'lastname', 'fullname', 'company', 'department',
+                          'company_phone', 'cell_phone', 'fax', 'city', 'country', 'state', 'street', 'zip', 'website'])
+
+
 def get_info_list(vCard, vcard_filepath):
-    vcard = {}
+    vcard = get_empty_record()
     name = cell = work = home = email = note = None
     vCard.validate()
     for key, val in list(vCard.contents.items()):
@@ -36,7 +41,7 @@ def get_info_list(vCard, vcard_filepath):
             vcard['fullname'] = vCard.fn.value
         elif key == 'n':
             name = str(vCard.n.valueRepr()).replace('  ', ' ').strip()
-            vcard['name'] = name
+            vcard['firstname'] = name
         elif key == 'tel':
             cell, home, work = get_phone_numbers(vCard)
             vcard['cell_phone'] = cell | home
@@ -47,6 +52,11 @@ def get_info_list(vCard, vcard_filepath):
         else:
             # An unused key, like `adr`, `title`, `url`, etc.
             pass
+
+    if vcard['fullname'] is None and name is not None:
+        vcard['fullname'] = name
+        vcard['firstname'] = name.split(' ')[0]
+        vcard['lastname'] = name.split(' ')[-1]
 
     return vcard
 

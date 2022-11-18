@@ -21,14 +21,20 @@ def get_addresses(email):
     return emails
 
 
+def get_empty_record():
+    return dict.fromkeys(['email', 'emails', 'firstname', 'lastname', 'fullname', 'company', 'department',
+                          'company_phone', 'cell_phone', 'fax', 'city', 'country', 'state', 'street', 'zip', 'website'])
+
+
 def get_contacts(addresses):
     emails = []
     if addresses is not None:
         for address in addresses.findall('.//emailAddress'):
-            email = address.get('OPFContactEmailAddressAddress')
-            name = address.get('OPFContactEmailAddressName')
-            if name is not None and name != email:
-                emails.append({'email': email.lower(), 'fullname': name})
+            record = get_empty_record()
+            record['email'] = address.get('OPFContactEmailAddressAddress')
+            record['fullname'] = address.get('OPFContactEmailAddressName')
+            if record['fullname'] is not None and record['fullname'] != record['email']:
+                emails.append(record)
 
     return emails
 
