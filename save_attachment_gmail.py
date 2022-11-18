@@ -58,17 +58,17 @@ def array_of_dicts_to_csv(array, filename):
         w.writerows(array)
 
 
-def get_vcards(zip, vcard_filepath):
-    with zip.open(vcard_filepath) as fp:
-        all_text = bytes_to_str(fp.read())
-    for vCard in vobject.readComponents(all_text):
-        yield vCard
+def save_attachments(attachments):
+    for attachment in attachments:
+        if 'file_handle' in attachment:
+            with open(re.sub(r"[/\\?%*:|\"<>\x7F\x00-\x1F]", "-", attachment['file_name']), 'wb+') as f:
+                f.write(attachment['file_handle'].read())
 
 
-def bytes_to_str(b):
-    if isinstance(b, bytes):
-        return b.decode('utf-8')
-    return b
+def create_and_open_folder(folder_name):
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+    os.chdir(folder_name)
 
 
 def main():
