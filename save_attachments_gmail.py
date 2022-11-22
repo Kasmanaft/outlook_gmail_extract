@@ -10,7 +10,7 @@ import pandas as pd
 
 def save_attachments(attachments):
     for attachment in attachments:
-        if 'content' in attachment:
+        if 'content' in attachment and attachment['content'] is not None:
             with open(re.sub(r"[/\\?%*:|\"<>\x7F\x00-\x1F]", "-", attachment['file_name']), 'wb+') as f:
                 f.write(attachment['content'])
 
